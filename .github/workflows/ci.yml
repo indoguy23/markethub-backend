@@ -1,0 +1,67 @@
+
+name: MarketHub Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - "feature/**"
+
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  django-checks:
+    name: Django Checks and Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: markethub
+          POSTGRES_USER: markethub_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U markethub_user -d markethub"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_DB: markethub
+      POSTGRES_USER: markethub_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django system checks
+        run: python manage.py check
+
+      - name: Check migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run database migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run automated tests
+        run: python manage.py test
