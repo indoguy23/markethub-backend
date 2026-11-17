@@ -6,18 +6,23 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from .models import Product
+from categories.models import Category
 
 
 class ProductAPITests(APITestCase):
 
     def setUp(self):
+        self.category = Category.objects.create(
+            name="Electronics",
+            description="Electronic devices"
+        )
+
         self.product = Product.objects.create(
+            category=self.category,
             name="Wireless Headphones",
             description="Bluetooth headphones",
-            price=Decimal("1999.00"),
-            stock=25,
-            image="https://example.com/headphones.jpg",
-            is_active=True,
+            price="1999.00",
+            stock=25
         )
 
         self.list_url = reverse("product-list")
@@ -34,6 +39,7 @@ class ProductAPITests(APITestCase):
 
     def test_create_product(self):
         data = {
+            "category": self.category.id,
             "name": "Gaming Mouse",
             "description": "Wireless gaming mouse",
             "price": "1499.00",
@@ -49,6 +55,10 @@ class ProductAPITests(APITestCase):
             status.HTTP_201_CREATED
         )
         self.assertEqual(Product.objects.count(), 2)
+        self.assertEqual(
+            response.data["category"],
+            self.category.id
+        )
 
     def test_get_single_product(self):
         response = self.client.get(self.detail_url)
@@ -61,6 +71,7 @@ class ProductAPITests(APITestCase):
 
     def test_update_product(self):
         data = {
+            "category": self.category.id,
             "name": "Premium Headphones",
             "description": "Updated headphones",
             "price": "2499.00",
