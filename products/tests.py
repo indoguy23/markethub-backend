@@ -1,7 +1,9 @@
 
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.urls import reverse
+
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -12,11 +14,22 @@ from categories.models import Category
 class ProductAPITests(APITestCase):
 
     def setUp(self):
+        # Create a test user
+        self.user = User.objects.create_user(
+            username="product_test_user",
+            password="TestPassword@123"
+        )
+
+        # Authenticate API test requests
+        self.client.force_authenticate(user=self.user)
+
+        # Create a test category
         self.category = Category.objects.create(
             name="Electronics",
             description="Electronic devices"
         )
 
+        # Create a test product
         self.product = Product.objects.create(
             category=self.category,
             name="Wireless Headphones",
@@ -25,6 +38,7 @@ class ProductAPITests(APITestCase):
             stock=25
         )
 
+        # API URLs
         self.list_url = reverse("product-list")
         self.detail_url = reverse(
             "product-detail",
@@ -34,7 +48,10 @@ class ProductAPITests(APITestCase):
     def test_get_all_products(self):
         response = self.client.get(self.list_url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK
+        )
         self.assertEqual(len(response.data), 1)
 
     def test_create_product(self):
@@ -63,7 +80,10 @@ class ProductAPITests(APITestCase):
     def test_get_single_product(self):
         response = self.client.get(self.detail_url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK
+        )
         self.assertEqual(
             response.data["name"],
             "Wireless Headphones"
@@ -82,23 +102,38 @@ class ProductAPITests(APITestCase):
 
         response = self.client.put(self.detail_url, data)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK
+        )
 
         self.product.refresh_from_db()
 
-        self.assertEqual(self.product.name, "Premium Headphones")
-        self.assertEqual(self.product.price, Decimal("2499.00"))
+        self.assertEqual(
+            self.product.name,
+            "Premium Headphones"
+        )
+        self.assertEqual(
+            self.product.price,
+            Decimal("2499.00")
+        )
 
     def test_partial_update_product(self):
         data = {"price": "2299.00"}
 
         response = self.client.patch(self.detail_url, data)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK
+        )
 
         self.product.refresh_from_db()
 
-        self.assertEqual(self.product.price, Decimal("2299.00"))
+        self.assertEqual(
+            self.product.price,
+            Decimal("2299.00")
+        )
         self.assertEqual(self.product.stock, 25)
 
     def test_delete_product(self):
