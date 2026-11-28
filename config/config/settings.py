@@ -28,6 +28,7 @@ SECRET_KEY = 'django-insecure-s6e+&a+r#$-%kpx3!(*1d*$+08szwpph!*wel=61zkw@j)1112
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+MOCK_PAYMENT_PROCESSING_ENABLED = DEBUG
 
 ALLOWED_HOSTS = []
 
@@ -48,6 +49,7 @@ INSTALLED_APPS = [
     "accounts",
     "carts",
     "orders",
+    'payments',
 ]
 
 MIDDLEWARE = [

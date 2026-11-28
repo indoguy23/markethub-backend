@@ -213,3 +213,117 @@ class OrderAPITestCase(APITestCase):
             response.status_code,
             status.HTTP_404_NOT_FOUND
         )
+    
+
+    def test_customer_can_cancel_pending_order(self):
+        # First create an order (stock reduces from 25 to 23).
+        create_response = self.client.post(
+            self.order_url,
+            self.shipping_data,
+            format="json"
+        )
+
+        order_id = create_response.data["order"]["id"]
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 23)
+
+        # Cancel the order.
+        response = self.client.post(
+            f"{self.order_url}{order_id}/cancel/"
+        )
+
+        self.product.refresh_from_db()
+        order = Order.objects.get(id=order_id)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(order.status, Order.Status.CANCELLED)
+        self.assertEqual(self.product.stock, 25)
+
+    def test_cancelled_order_does_not_restore_stock_twice(self):
+        create_response = self.client.post(
+            self.order_url,
+            self.shipping_data,
+            format="json"
+        )
+
+        order_id = create_response.data["order"]["id"]
+
+        cancel_url = f"{self.order_url}{order_id}/cancel/"
+
+        first_response = self.client.post(cancel_url)
+
+        self.product.refresh_from_db()
+        stock_after_first_cancellation = self.product.stock
+
+        second_response = self.client.post(cancel_url)
+
+        self.product.refresh_from_db()
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            second_response.status_code,
+            status.HTTP_400_BAD_REQUEST
+        )
+        self.assertEqual(
+            self.product.stock,
+            stock_after_first_cancellation
+        )
+        self.assertEqual(self.product.stock, 25)
+
+    def test_customer_cannot_cancel_confirmed_order(self):
+        create_response = self.client.post(
+            self.order_url,
+            self.shipping_data,
+            format="json"
+        )
+
+        order_id = create_response.data["order"]["id"]
+
+        order = Order.objects.get(id=order_id)
+        order.status = Order.Status.CONFIRMED
+        order.save(update_fields=["status", "updated_at"])
+
+        response = self.client.post(
+            f"{self.order_url}{order_id}/cancel/"
+        )
+
+        self.product.refresh_from_db()
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST
+        )
+        self.assertEqual(self.product.stock, 23)
+
+    def test_customer_cannot_cancel_another_users_order(self):
+        other_user = User.objects.create_user(
+            username="cancelowner",
+            password="TestPassword123"
+        )
+
+        other_order = Order.objects.create(
+            user=other_user,
+            total_amount=Decimal("500.00"),
+            shipping_address="Other address",
+            shipping_city="Delhi",
+            shipping_state="Delhi",
+            shipping_postal_code="110001",
+            shipping_phone="9876543210"
+        )
+
+        response = self.client.post(
+            f"{self.order_url}{other_order.id}/cancel/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND
+        )
+
+        other_order.refresh_from_db()
+
+        self.assertEqual(
+            other_order.status,
+            Order.Status.PENDING
+        )
