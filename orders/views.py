@@ -16,6 +16,8 @@ from products.models import Product
 from .models import Order, OrderItem
 from .serializers import OrderSerializer
 
+from payments.models import Payment
+
 
 class OrderListCreateView(APIView):
 
@@ -155,5 +157,74 @@ class OrderDetailView(APIView):
 
         return Response(
             serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+class OrderCancelView(APIView):
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def post(self, request, pk):
+
+        with transaction.atomic():
+
+            order = get_object_or_404(
+                Order.objects.select_for_update(),
+                id=pk,
+                user=request.user
+            )
+
+            # Only pending orders can be cancelled.
+            if order.status != Order.Status.PENDING:
+                return Response(
+                    {
+                        "message": (
+                            "Only pending orders can be cancelled. "
+                            "Confirmed, processing, shipped, delivered, "
+                            "or already cancelled orders cannot be cancelled "
+                            "through this endpoint."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            order_items = OrderItem.objects.select_for_update().filter(
+                order=order
+            ).order_by("product_id")
+
+            # Restore stock for each ordered product.
+            for order_item in order_items:
+
+                product = Product.objects.select_for_update().get(
+                    id=order_item.product_id
+                )
+
+                product.stock += order_item.quantity
+
+                product.save(
+                    update_fields=["stock", "updated_at"]
+                )
+
+            # Invalidate pending payments for this order.
+            Payment.objects.filter(
+                order=order,
+                status=Payment.PaymentStatus.PENDING
+            ).update(
+                status=Payment.PaymentStatus.FAILED,
+                failure_reason="Order cancelled by customer."
+            )
+
+            # Mark the order as cancelled.
+            order.status = Order.Status.CANCELLED
+
+            order.save(
+                update_fields=["status", "updated_at"]
+            )
+
+        return Response(
+            {
+                "message": "Order cancelled successfully. Product stock has been restored.",
+                "order_id": order.id,
+                "status": order.status
+            },
             status=status.HTTP_200_OK
         )
