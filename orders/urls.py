@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     OrderListCreateView,
     OrderDetailView,
+    OrderCancelView,
 )
 
 urlpatterns = [
@@ -15,5 +16,10 @@ urlpatterns = [
         "<int:pk>/",
         OrderDetailView.as_view(),
         name="order-detail"
+    ),
+    path(
+        "<int:pk>/cancel/",
+        OrderCancelView.as_view(),
+        name="order-cancel"
     ),
 ]
